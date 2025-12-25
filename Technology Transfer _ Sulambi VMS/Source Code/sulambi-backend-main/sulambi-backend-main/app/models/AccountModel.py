@@ -17,7 +17,6 @@ class AccountModel(Model):
     return super().updateSpecific(id, ["password"], (password,))
 
   def authenticate(self, username: str, password: str):
-    from ..database import connection
     param = connection.get_param_placeholder()
     conn, cursor = connection.cursorInstance()
     
