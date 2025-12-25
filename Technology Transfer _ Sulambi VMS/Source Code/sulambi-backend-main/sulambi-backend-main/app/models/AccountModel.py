@@ -24,23 +24,17 @@ class AccountModel(Model):
     try:
       is_postgresql = connection.get_db_type() == 'postgresql'
       
-      # Build column list
-      # For PostgreSQL, columns are lowercase unless quoted, so use lowercase with aliases
-      # For SQLite, column names work as-is (case-insensitive)
+      # Build column list - parseResponse maps by position, not column names
+      # For PostgreSQL, use lowercase column names (PostgreSQL lowercases unquoted identifiers)
+      # For SQLite, column names are case-insensitive
       all_columns = [self.primaryKey] + self.columns
       
       if is_postgresql:
-        # PostgreSQL lowercases unquoted identifiers, so use lowercase columns with aliases
-        # This ensures the result matches what parseResponse expects (camelCase keys)
-        column_aliases = []
-        for col in all_columns:
-          col_lower = col.lower()
-          if col != col_lower:
-            column_aliases.append(f'{col_lower} AS "{col}"')
-          else:
-            column_aliases.append(f'"{col}"')
-        column_list = ','.join(column_aliases)
-        cursor.execute(f'SELECT {column_list} FROM {self.table} WHERE username={param} AND password={param} AND active={param}', (username, password, True))
+        # PostgreSQL columns are lowercase, so use lowercase in SELECT
+        # parseResponse will still create camelCase keys based on self.columns order
+        columns_lower = [col.lower() for col in all_columns]
+        column_list = ','.join(columns_lower)
+        cursor.execute(f"SELECT {column_list} FROM {self.table} WHERE username={param} AND password={param} AND active={param}", (username, password, True))
       else:
         # SQLite is case-insensitive for identifiers
         column_list = ','.join(all_columns)
