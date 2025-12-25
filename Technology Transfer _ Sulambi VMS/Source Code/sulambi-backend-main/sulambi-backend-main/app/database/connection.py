@@ -6,7 +6,11 @@ load_dotenv()
 DB_PATH = os.getenv("DB_PATH")
 DATABASE_URL = os.getenv("DATABASE_URL")  # For PostgreSQL (production)
 
+# Track which database type is being used
+_db_type = None
+
 def cursorInstance():
+  global _db_type
   # Use PostgreSQL if DATABASE_URL is provided (production)
   if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
     try:
@@ -21,6 +25,7 @@ def cursorInstance():
         host=result.hostname,
         port=result.port or 5432
       )
+      _db_type = 'postgresql'
       return connect, connect.cursor()
     except ImportError:
       print("Warning: psycopg2 not installed. Install with: pip install psycopg2-binary")
@@ -37,5 +42,25 @@ def cursorInstance():
   connect.execute("PRAGMA synchronous=NORMAL")
   connect.execute("PRAGMA cache_size=1000")
   connect.execute("PRAGMA temp_store=MEMORY")
+  _db_type = 'sqlite'
   return connect, connect.cursor()
+
+def get_db_type():
+  """Return the database type: 'postgresql' or 'sqlite'"""
+  global _db_type
+  if _db_type is None:
+    # Check which database would be used
+    if DATABASE_URL and DATABASE_URL.startswith('postgresql://'):
+      try:
+        import psycopg2
+        _db_type = 'postgresql'
+      except:
+        _db_type = 'sqlite'
+    else:
+      _db_type = 'sqlite'
+  return _db_type
+
+def get_param_placeholder():
+  """Return the correct parameter placeholder for the database type"""
+  return '%s' if get_db_type() == 'postgresql' else '?'
 
