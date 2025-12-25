@@ -100,8 +100,9 @@ class Model:
   # gets a single data through the use of the primary key
   def get(self, key):
     conn, cursor = connection.cursorInstance()
+    param = connection.get_param_placeholder()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
-    query = f"SELECT {columnQuery} FROM {self.table} WHERE {self.primaryKey}=?"
+    query = f"SELECT {columnQuery} FROM {self.table} WHERE {self.primaryKey}={param}"
 
     cursor.execute(query, (key, ))
     dbResponse = cursor.fetchone()
@@ -127,9 +128,10 @@ class Model:
   # gets a specific value by matching its column values
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
+    param = connection.get_param_placeholder()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
 
-    queryFormatter = [f"{col}=?" for col in columns]
+    queryFormatter = [f"{col}={param}" for col in columns]
     queryFormatter = " OR ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {self.table} WHERE {queryFormatter}"
 
@@ -143,9 +145,10 @@ class Model:
   # gets a specific value by matching its column values
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
+    param = connection.get_param_placeholder()
     columnQuery = ", ".join([self.primaryKey] + self.columns)
 
-    queryFormatter = [f"{col}=?" for col in columns]
+    queryFormatter = [f"{col}={param}" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
     query = f"SELECT {columnQuery} FROM {self.table} WHERE {queryFormatter}"
 
@@ -159,13 +162,16 @@ class Model:
   # creates a new data with the provided columns and data value
   def create(self, data: tuple, includePrimaryKey=False):
     conn, cursor = connection.cursorInstance()
+    
+    # Get the correct parameter placeholder for the database type
+    param = connection.get_param_placeholder()
 
     if (includePrimaryKey):
       columnFormatter = ", ".join([self.primaryKey] + self.columns)
-      queryFormatter = ", ".join('?' * (len(self.columns) + 1))
+      queryFormatter = ", ".join([param] * (len(self.columns) + 1))
     else:
       columnFormatter = ", ".join(self.columns)
-      queryFormatter = ", ".join('?' * len(self.columns))
+      queryFormatter = ", ".join([param] * len(self.columns))
 
     query = f"INSERT INTO {self.table} ({columnFormatter}) VALUES ({queryFormatter})"
     print(query)
@@ -181,10 +187,11 @@ class Model:
   # updates the data with the given primary key
   def update(self, key, data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{col}=?" for col in self.columns]
+    param = connection.get_param_placeholder()
+    queryFormatter = [f"{col}={param}" for col in self.columns]
     queryFormatter = ", ".join(queryFormatter)
 
-    query = f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}=?"
+    query = f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}={param}"
     print("update query: ", query)
     cursor.execute(query, data + (key,))
     conn.commit()
@@ -194,18 +201,20 @@ class Model:
   # updates specific fields only
   def updateSpecific(self, key, fields: list[str], data: tuple):
     conn, cursor = connection.cursorInstance()
-    queryFormatter = [f"{col}=?" for col in fields]
+    param = connection.get_param_placeholder()
+    queryFormatter = [f"{col}={param}" for col in fields]
     queryFormatter = ", ".join(queryFormatter)
 
-    cursor.execute(f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}=?", data + (key,))
+    cursor.execute(f"UPDATE {self.table} SET {queryFormatter} WHERE {self.primaryKey}={param}", data + (key,))
     conn.commit()
 
   # deletes one data
   def delete(self, key):
     conn, cursor = connection.cursorInstance()
+    param = connection.get_param_placeholder()
     tmpDeleted = self.get(key)
 
-    cursor.execute(f"DELETE FROM {self.table} WHERE {self.primaryKey}=?", (key,))
+    cursor.execute(f"DELETE FROM {self.table} WHERE {self.primaryKey}={param}", (key,))
     conn.commit()
     return tmpDeleted
 
