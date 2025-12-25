@@ -19,6 +19,19 @@ CORS(Server, resources={r"/*": {
   "supports_credentials": True
 }})
 
+@Server.route("/")
+def root():
+  return {
+    "message": "Sulambi VMS API",
+    "version": "1.0",
+    "api_base": "/api",
+    "endpoints": {
+      "health": "/api/",
+      "auth": "/api/auth",
+      "dashboard": "/api/dashboard"
+    }
+  }, 200
+
 @Server.route("/uploads/<path:path>")
 def staticFileHost(path):
   response = send_from_directory("uploads", path)
