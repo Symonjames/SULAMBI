@@ -6,6 +6,36 @@ load_dotenv()
 DEBUG = os.getenv("DEBUG") == "True"
 conn, cursor = connection.cursorInstance()
 
+# Check if we're using PostgreSQL by checking the connection type
+try:
+    import psycopg2
+    is_postgresql = isinstance(conn, psycopg2.extensions.connection)
+except:
+    is_postgresql = False
+
+# Check if tables already exist (skip initialization if they do - tables were migrated)
+try:
+    if is_postgresql:
+        cursor.execute("""
+            SELECT EXISTS (
+                SELECT FROM information_schema.tables 
+                WHERE table_name = 'accounts'
+            )
+        """)
+        result = cursor.fetchone()
+        tables_exist = result[0] if result else False
+    else:
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='accounts'")
+        tables_exist = cursor.fetchone() is not None
+    
+    if tables_exist:
+        DEBUG and print("[*] Tables already exist, skipping initialization...")
+        conn.close()
+        import sys
+        sys.exit(0)
+except Exception as e:
+    DEBUG and print(f"[*] Could not check if tables exist: {e}, proceeding with initialization...")
+
 """
 NOTE: I will not add any relations to tables, but I will be doing these stuffs
 on logic-level of the application for faster implementation
@@ -16,7 +46,8 @@ on logic-level of the application for faster implementation
 #  ACCOUNTS TABLE  #
 ####################
 DEBUG and print("[*] Initializing accounts table...", end="")
-conn.execute("""
+# Use cursor.execute() for both SQLite and PostgreSQL
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS accounts(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username STRING NOT NULL,
@@ -26,6 +57,7 @@ conn.execute("""
     active BOOLEAN DEFAULT TRUE
   )
 """)
+conn.commit()
 
 DEBUG and print("Done")
 
@@ -33,7 +65,7 @@ DEBUG and print("Done")
 #  SESSIONS TABLE  #
 ####################
 DEBUG and print("[*] Initializing sessions table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS sessions(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     token STRING UNIQUE,
@@ -48,7 +80,7 @@ DEBUG and print("Done")
 #  MEMBERSHIP TABLE  #
 ######################
 DEBUG and print("[*] Initializing membership table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS membership(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     applyingAs VARCHAR NOT NULL,
@@ -97,7 +129,7 @@ DEBUG and print("Done")
 ########################
 # for passing requirements for helpdesk/events
 DEBUG and print("[*] Initializing requirements table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS requirements(
     id STRING UNIQUE,
     medCert STRING NOT NULL,
@@ -137,7 +169,7 @@ DEBUG and print("Done")
 ###########################
 # for events proposal
 DEBUG and print("[*] Initializing internalEvents table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS internalEvents(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title STRING NOT NULL,
@@ -176,7 +208,7 @@ DEBUG and print("Done")
 ###########################
 # internal events
 DEBUG and print("[*] Initializing externalEvents table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS externalEvents(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     extensionServiceType STRING NOT NULL,
@@ -221,7 +253,7 @@ DEBUG and print("Done")
 ###########################
 # for external event proposal
 DEBUG and print("[*] Initializing externalReport table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS externalReport(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventId INTEGER NOT NULL,
@@ -238,7 +270,7 @@ DEBUG and print("Done")
 ###########################
 # internal events report
 DEBUG and print("[*] Initializing internalReport table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS internalReport(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventId INTEGER NOT NULL,
@@ -259,7 +291,7 @@ DEBUG and print("Done")
 #  HELPDESK TABLE  #
 ####################
 DEBUG and print("[*] Initializing helpdesk table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS helpdesk(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     email STRING NOT NULL,
@@ -288,7 +320,7 @@ DEBUG and print("Done")
 #  EVENT EVALUATION FORM  #
 ###########################
 DEBUG and print("[*] Initializing evaluation table...", end="")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS evaluation(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     criteria TEXT NOT NULL,
@@ -307,7 +339,7 @@ DEBUG and print("Done")
 #  SIGNATORIES TABLE  #
 #######################
 DEBUG and print("[*] Initializing eventSignatories table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS eventSignatories(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     preparedBy STRING DEFAULT "NAME",
@@ -329,7 +361,7 @@ DEBUG and print("Done")
 #  FEEDBACK TABLE  #
 ####################
 DEBUG and print("[*] Initializing feedback table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS feedback(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message TEXT NOT NULL,
@@ -341,7 +373,7 @@ conn.execute("""
 #  ACTIVITY MONTH ASSIGNMENTS TABLE  #
 ####################
 DEBUG and print("[*] Initializing activity_month_assignments table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS activity_month_assignments(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventId INTEGER NOT NULL,
@@ -357,7 +389,7 @@ DEBUG and print("Done")
 ###########################
 # For storing satisfaction survey responses from volunteers and beneficiaries
 DEBUG and print("[*] Initializing satisfactionSurveys table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS satisfactionSurveys(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     eventId INTEGER NOT NULL,
@@ -402,7 +434,7 @@ DEBUG and print("Done")
 ###########################
 # For tracking volunteer engagement and dropout risk metrics
 DEBUG and print("[*] Initializing dropoutRiskAssessment table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS dropoutRiskAssessment(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     membershipId INTEGER NOT NULL,
@@ -448,7 +480,7 @@ DEBUG and print("Done")
 # For tracking volunteer participation history by semester
 # Tracks events joined vs attended per semester for consistency monitoring
 DEBUG and print("[*] Initializing volunteerParticipationHistory table...")
-conn.execute("""
+cursor.execute("""
   CREATE TABLE IF NOT EXISTS volunteerParticipationHistory(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     volunteerEmail STRING NOT NULL,
@@ -487,9 +519,9 @@ DEBUG and print("Done")
 
 # Create index for faster semester-based queries
 DEBUG and print("[*] Creating indexes for volunteerParticipationHistory...")
-conn.execute("CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerParticipationHistory(volunteerEmail)")
-conn.execute("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHistory(semester)")
-conn.execute("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
+cursor.execute("CREATE INDEX IF NOT EXISTS idx_volunteer_email ON volunteerParticipationHistory(volunteerEmail)")
+cursor.execute("CREATE INDEX IF NOT EXISTS idx_semester ON volunteerParticipationHistory(semester)")
+cursor.execute("CREATE INDEX IF NOT EXISTS idx_last_event_date ON volunteerParticipationHistory(lastEventDate)")
 DEBUG and print("Done")
 
 
@@ -502,10 +534,13 @@ initialAccounts = [
 # DEBUG and print("[*] Inserting accounts...")
 for account in initialAccounts:
   # Check if account already exists before inserting
-  cursor.execute("SELECT COUNT(*) FROM accounts WHERE username = ?", (account[0],))
-  if cursor.fetchone()[0] == 0:
+  # Use correct placeholder for database type
+  param = '%s' if is_postgresql else '?'
+  cursor.execute(f"SELECT COUNT(*) FROM accounts WHERE username = {param}", (account[0],))
+  result = cursor.fetchone()
+  if result and result[0] == 0:
     DEBUG and print("[+] Account:", account[0])
-    conn.execute("INSERT INTO accounts (username, password, accountType) VALUES (?, ?, ?)", account)
+    cursor.execute(f"INSERT INTO accounts (username, password, accountType) VALUES ({param}, {param}, {param})", account)
   else:
     DEBUG and print("[!] Account already exists:", account[0])
 
