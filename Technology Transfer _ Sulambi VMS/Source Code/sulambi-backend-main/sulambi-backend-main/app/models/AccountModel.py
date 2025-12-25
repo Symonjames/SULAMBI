@@ -17,20 +17,46 @@ class AccountModel(Model):
     return super().updateSpecific(id, ["password"], (password,))
 
   def authenticate(self, username: str, password: str):
+    from ..database import connection
+    param = connection.get_param_placeholder()
     conn, cursor = connection.cursorInstance()
-    cursor.execute(f"SELECT {','.join([self.primaryKey] + self.columns)} FROM {self.table} WHERE username=? AND password=? AND active=?", (username, password, True))
-    parsed = self.parseResponse(cursor.fetchone())
+    
+    try:
+      is_postgresql = connection.get_db_type() == 'postgresql'
+      
+      # Build column list - for PostgreSQL, use quoted identifiers to preserve case
+      # For SQLite, column names work as-is
+      if is_postgresql:
+        # Quote column names to preserve case in PostgreSQL
+        columns_quoted = [f'"{col}"' for col in ([self.primaryKey] + self.columns)]
+        column_list = ','.join(columns_quoted)
+        # Quote table name and WHERE clause columns too
+        cursor.execute(f'SELECT {column_list} FROM "{self.table}" WHERE "username"={param} AND "password"={param} AND "active"={param}', (username, password, True))
+      else:
+        # SQLite is case-insensitive for identifiers
+        column_list = ','.join([self.primaryKey] + self.columns)
+        cursor.execute(f"SELECT {column_list} FROM {self.table} WHERE username={param} AND password={param} AND active={param}", (username, password, True))
+      
+      parsed = self.parseResponse(cursor.fetchone())
 
-    if (parsed == None):
-      return None
+      if (parsed == None):
+        conn.close()
+        return None
 
-    # clears current user's current token
-    SessionDb = SessionModel()
+      # clears current user's current token
+      SessionDb = SessionModel()
 
-    # provide users their newly created token
-    session = SessionDb.create(parsed["id"], parsed["accountType"])
-    conn.close()
-    return session
+      # provide users their newly created token
+      # parsed dictionary uses the keys from self.columns (camelCase)
+      session = SessionDb.create(parsed["id"], parsed["accountType"])
+      conn.close()
+      return session
+    except Exception as e:
+      conn.close()
+      print(f"Error in authenticate: {e}")
+      import traceback
+      traceback.print_exc()
+      raise
 
   def deactivate(self, id: int):
     matchedAccount = super().get(id)
