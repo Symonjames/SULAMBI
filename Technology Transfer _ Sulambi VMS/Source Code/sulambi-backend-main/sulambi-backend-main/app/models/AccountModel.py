@@ -24,17 +24,26 @@ class AccountModel(Model):
     try:
       is_postgresql = connection.get_db_type() == 'postgresql'
       
-      # Build column list - for PostgreSQL, use quoted identifiers to preserve case
-      # For SQLite, column names work as-is
+      # Build column list
+      # For PostgreSQL, columns are lowercase unless quoted, so use lowercase with aliases
+      # For SQLite, column names work as-is (case-insensitive)
+      all_columns = [self.primaryKey] + self.columns
+      
       if is_postgresql:
-        # Quote column names to preserve case in PostgreSQL
-        columns_quoted = [f'"{col}"' for col in ([self.primaryKey] + self.columns)]
-        column_list = ','.join(columns_quoted)
-        # Quote table name and WHERE clause columns too
-        cursor.execute(f'SELECT {column_list} FROM "{self.table}" WHERE "username"={param} AND "password"={param} AND "active"={param}', (username, password, True))
+        # PostgreSQL lowercases unquoted identifiers, so use lowercase columns with aliases
+        # This ensures the result matches what parseResponse expects (camelCase keys)
+        column_aliases = []
+        for col in all_columns:
+          col_lower = col.lower()
+          if col != col_lower:
+            column_aliases.append(f'{col_lower} AS "{col}"')
+          else:
+            column_aliases.append(f'"{col}"')
+        column_list = ','.join(column_aliases)
+        cursor.execute(f'SELECT {column_list} FROM {self.table} WHERE username={param} AND password={param} AND active={param}', (username, password, True))
       else:
         # SQLite is case-insensitive for identifiers
-        column_list = ','.join([self.primaryKey] + self.columns)
+        column_list = ','.join(all_columns)
         cursor.execute(f"SELECT {column_list} FROM {self.table} WHERE username={param} AND password={param} AND active={param}", (username, password, True))
       
       parsed = self.parseResponse(cursor.fetchone())
