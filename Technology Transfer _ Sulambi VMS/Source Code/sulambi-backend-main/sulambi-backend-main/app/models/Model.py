@@ -114,7 +114,20 @@ class Model:
   # returns all the data in the table
   def getAll(self):
     conn, cursor = connection.cursorInstance()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    
+    # For PostgreSQL, use lowercase column names (PostgreSQL lowercases unquoted identifiers)
+    # parseResponse maps by position, so order must match [self.primaryKey] + self.columns
+    is_postgresql = connection.get_db_type() == 'postgresql'
+    
+    if is_postgresql:
+      # PostgreSQL columns are lowercase, so use lowercase in SELECT
+      # parseResponse will still create camelCase keys based on self.columns order
+      all_columns = [self.primaryKey] + self.columns
+      columns_lower = [col.lower() for col in all_columns]
+      columnQuery = ", ".join(columns_lower)
+    else:
+      # SQLite is case-insensitive for identifiers
+      columnQuery = ", ".join([self.primaryKey] + self.columns)
 
     query = f"SELECT {columnQuery} FROM {self.table}"
 
