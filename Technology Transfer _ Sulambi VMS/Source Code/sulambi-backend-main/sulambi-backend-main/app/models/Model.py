@@ -142,7 +142,15 @@ class Model:
   def getOrSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     param = connection.get_param_placeholder()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    
+    # For PostgreSQL, use lowercase column names in SELECT
+    is_postgresql = connection.get_db_type() == 'postgresql'
+    if is_postgresql:
+      all_columns = [self.primaryKey] + self.columns
+      columns_lower = [col.lower() for col in all_columns]
+      columnQuery = ", ".join(columns_lower)
+    else:
+      columnQuery = ", ".join([self.primaryKey] + self.columns)
 
     queryFormatter = [f"{col}={param}" for col in columns]
     queryFormatter = " OR ".join(queryFormatter)
@@ -159,7 +167,15 @@ class Model:
   def getAndSearch(self, columns: list, values: list):
     conn, cursor = connection.cursorInstance()
     param = connection.get_param_placeholder()
-    columnQuery = ", ".join([self.primaryKey] + self.columns)
+    
+    # For PostgreSQL, use lowercase column names in SELECT
+    is_postgresql = connection.get_db_type() == 'postgresql'
+    if is_postgresql:
+      all_columns = [self.primaryKey] + self.columns
+      columns_lower = [col.lower() for col in all_columns]
+      columnQuery = ", ".join(columns_lower)
+    else:
+      columnQuery = ", ".join([self.primaryKey] + self.columns)
 
     queryFormatter = [f"{col}={param}" for col in columns]
     queryFormatter = " AND ".join(queryFormatter)
